@@ -30,7 +30,7 @@ The design targets a 75 MHz FPGA clock, MA rates of 1, 2, 5, and 10 MHz, and
 rotation speeds of 1–10 revolutions per second. These are design targets;
 complete interface timing and hardware measurements are pending.
 
-The documented frame sequence is:
+The standard BiSS-C (non-safety) frame sequence is:
 
 ```text
 LAT, ACK=0, STR=1, CDS=0, MT, ST, nE, nW, inverted CRC-6, STP=0
@@ -61,8 +61,9 @@ run with Quartus Prime Lite **25.1std.0 Build 1129**.
 ```powershell
 git clone https://github.com/Ala-Ismail/BiSSC-Emulator.git
 cd BiSSC-Emulator
+# Standard BiSS-C (non-safety): G_SAFETY_MODE=false
 quartus_sh --flow compile biss_emulator -c biss_emulator
-# Build the safety revision separately:
+# BiSS Safety: G_SAFETY_MODE=true
 quartus_sh --flow compile biss_emulator -c biss_emulator_safety
 ```
 
@@ -124,7 +125,11 @@ position, widths, fault controls, and timeout at LAT for the entire frame.
 Atomic host updates and motion configuration validation are part of the planned
 register interface; configure controls while disabled and idle.
 
-For a 24-bit single-turn, 12-bit multi-turn encoder at 5 revolutions per second:
+### Example: standard BiSS-C (non-safety)
+
+Build the `biss_emulator` revision with `G_SAFETY_MODE=false`. This example
+returns one position word for a 24-bit single-turn, 12-bit multi-turn encoder
+at 5 revolutions per second; it does not include an SPW or life counter.
 
 | Input | Value |
 | --- | --- |
@@ -148,9 +153,51 @@ phase_increment = round(speed_rps × 2^64 / 75,000,000)
 See the [user guide](BISS_EMULATOR_USER_GUIDE.md) for all top-level controls,
 speed examples, frame checks, and fault-injection procedures.
 
-### Select BiSS Safety at compile time
+### Example: enable BiSS Safety (CPW + SPW)
 
-Set these generics on `biss_emulator_top` (forwarded to `biss_frame_engine`):
+This example uses a 32-bit ST / 12-bit MT CPW and a 24-bit ST / 12-bit MT SPW
+at 5 revolutions per second. Enable safety in `biss_emulator_safety.qsf` with
+these compile-time generic assignments (already set in that revision):
+
+```tcl
+set_parameter -name G_SAFETY_MODE true
+set_parameter -name G_SPW_ST_BITS 24
+set_parameter -name G_SPW_MT_BITS 12
+```
+
+Build that revision:
+
+```powershell
+quartus_sh --flow compile biss_emulator -c biss_emulator_safety
+```
+
+The generated image is `output_files/safety/biss_emulator_safety.sof`.
+After completing the board setup described above, program this safety image
+and drive the active configuration ports as follows:
+
+| Input | Example value |
+| --- | --- |
+| `cfg_enable` | `0` during setup, then `1` to respond |
+| `cfg_st_bits` | `32` (CPW single-turn width) |
+| `cfg_mt_bits` | `12` (CPW multi-turn width) |
+| `cfg_phase_increment` | `0x0000011E54C67285` (5 rev/s at 75 MHz) |
+| `cfg_timeout_ticks` | `1500` (20 µs at 75 MHz) |
+| `cfg_direction_neg` | `0` (forward) |
+| `cfg_position_st`, `cfg_position_mt` | `0` for a zero preload |
+| `cfg_load_position` | Pulse `1` for one FPGA clock during setup, then `0` |
+| `cfg_force_error`, `cfg_force_warning`, `cfg_force_bad_crc` | `0` |
+
+Configure the BiSS master to receive both words: CPW with 12 MT + 32 ST bits,
+two status bits and CRC6; then SPW with 12 MT + 24 ST bits, two status bits,
+six LC bits and CRC16. Supply MA at a supported rate (for example, 1 MHz).
+The first accepted frame after reset contains LC=1. In this example SPW
+contains the same 12 MT bits and the leading 24 bits of CPW's 32-bit ST field.
+
+`cfg_enable` only enables responses; it does not select safety mode. Changing
+`G_SAFETY_MODE` requires recompilation and programming the corresponding image.
+
+The generic defaults on `biss_emulator_top` (forwarded to `biss_frame_engine`)
+are listed below; the safety revision overrides them as shown above:
 
 | Generic | Default | Purpose |
 | --- | --- | --- |
