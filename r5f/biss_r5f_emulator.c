@@ -1,3 +1,9 @@
+/*
+ * Copyright (c) 2026 Ala-Ismail
+ * SPDX-License-Identifier: MIT
+ * See LICENSE in the repository root for the full license text.
+ */
+
 #include "biss_r5f_emulator.h"
 
 static uint8_t crc6_step(uint8_t crc, bool bit)

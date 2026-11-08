@@ -1,3 +1,9 @@
+/*
+ * Copyright (c) 2026 Ala-Ismail
+ * SPDX-License-Identifier: MIT
+ * See LICENSE in the repository root for the full license text.
+ */
+
 #ifndef BISS_R5F_EMULATOR_H
 #define BISS_R5F_EMULATOR_H
 

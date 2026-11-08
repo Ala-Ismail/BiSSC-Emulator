@@ -1,3 +1,7 @@
+-- Copyright (c) 2026 Ala-Ismail
+-- SPDX-License-Identifier: MIT
+-- See LICENSE in the repository root for the full license text.
+
 library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
