@@ -10,7 +10,7 @@ and meet the constrained internal 75 MHz timing checks. Frame-engine simulation
 passes for both formats. Board integration, external timing constraints, and
 hardware measurements are still required.
 
-## Features and scope
+## 1. Features and scope
 
 The implemented FPGA core provides:
 
@@ -39,7 +39,7 @@ LAT, ACK=0, STR=1, CDS=0, MT, ST, nE, nW, inverted CRC-6, STP=0
 Multi-turn data is omitted when its configured width is zero. Position and CRC
 fields are transmitted most-significant bit first.
 
-## Repository layout
+## 2. Repository layout
 
 | Path | Purpose |
 | --- | --- |
@@ -53,7 +53,7 @@ fields are transmitted most-significant bit first.
 | `BISS_EMULATOR_*.md` | User guide, design requirements, and planned interfaces |
 | `output_files/` | Generated compilation reports and programming files; ignored by Git |
 
-## Build the FPGA project
+## 3. Build the FPGA project
 
 Install Quartus Prime Lite with MAX 10 device support. The full compile was
 run with Quartus Prime Lite **25.1std.0 Build 1129**.
@@ -77,7 +77,7 @@ installation used for this project:
 Alternatively, open `biss_emulator.qpf` in Quartus and select **Processing →
 Start Compilation**. The top-level entity is `biss_emulator_top`.
 
-### Current compile result
+### 3.1 Current compile result
 
 The compile on 8 November 2026 produced:
 
@@ -98,7 +98,7 @@ Warnings concern LogicLock licensing and incomplete pin assignments. External
 interface timing is not fully constrained; positive internal slack does not
 establish timing at a connected master's pins.
 
-### Device and board setup
+### 3.2 Device and board setup
 
 The project uses **10M50DAF484C7G** as a provisional MAX 10 target.
 Configuration and status signals use virtual pins; clock, reset, MA, and SLO
@@ -118,14 +118,14 @@ MA is asynchronous to the FPGA clock and is synchronized internally; it is not
 a second RTL clock. RS-422 signals require suitable receivers/drivers and must
 not connect directly to FPGA I/O.
 
-## Configure the emulator
+## 4. Configure the emulator
 
 The current top level exposes `cfg_*` inputs directly. The serializer captures
 position, widths, fault controls, and timeout at LAT for the entire frame.
 Atomic host updates and motion configuration validation are part of the planned
 register interface; configure controls while disabled and idle.
 
-### Example: standard BiSS-C (non-safety)
+### 4.1 Example: standard BiSS-C (non-safety)
 
 Build the `biss_emulator` revision with `G_SAFETY_MODE=false`. This example
 returns one position word for a 24-bit single-turn, 12-bit multi-turn encoder
@@ -153,7 +153,7 @@ phase_increment = round(speed_rps × 2^64 / 75,000,000)
 See the [user guide](BISS_EMULATOR_USER_GUIDE.md) for all top-level controls,
 speed examples, frame checks, and fault-injection procedures.
 
-### Example: enable BiSS Safety (CPW + SPW)
+### 4.2 Example: enable BiSS Safety (CPW + SPW)
 
 This example uses a 32-bit ST / 12-bit MT CPW and a 24-bit ST / 12-bit MT SPW
 at 5 revolutions per second. Enable safety in `biss_emulator_safety.qsf` with
@@ -225,7 +225,7 @@ timeout reject a start without consuming LC.
 See [the safety setup guide](BISS_EMULATOR_USER_GUIDE.md#11-biss-safety-option)
 for Quartus generic assignments, mapping, and validation rules.
 
-## R5F reference core
+## 5. R5F reference core
 
 **Not maintained.** The R5F implementation is retained for reference only.
 Active development and verification focus on the FPGA RTL; R5F does not
@@ -239,7 +239,7 @@ included.
 
 See [R5F setup and limitations](r5f/README.md) before integrating it.
 
-## Verification and remaining work
+## 6. Verification and remaining work
 
 Run the self-checking frame-engine regression with ModelSim/Questa on PATH:
 
@@ -267,7 +267,7 @@ BiSS Safety here emulates process-data communication using a shared motion
 source. It does not provide independent redundant sensing or a safety function.
 This project is not safety certified. The R5F reference remains standard mode only.
 
-## Documentation
+## 7. Documentation
 
 | Document | Contents |
 | --- | --- |
@@ -279,6 +279,6 @@ This project is not safety certified. The R5F reference remains standard mode on
 | [Simulation guide](sim/README.md) | Running the regression and its coverage limits |
 | [R5F guide](r5f/README.md) | Bare-metal reference core integration |
 
-## License
+## 8. License
 
 This project is licensed under the [MIT License](LICENSE).
