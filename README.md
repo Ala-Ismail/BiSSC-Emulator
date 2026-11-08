@@ -234,4 +234,4 @@ This project is not safety certified. The R5F reference remains standard mode on
 
 ## License
 
-No license file is currently included in this repository.
+This project is licensed under the [MIT License](LICENSE).
