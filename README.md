@@ -180,6 +180,10 @@ for Quartus generic assignments, mapping, and validation rules.
 
 ## R5F reference core
 
+**Not maintained.** The R5F implementation is retained for reference only.
+Active development and verification focus on the FPGA RTL; R5F does not
+receive new features or fixes and does not support BiSS Safety.
+
 The C implementation in `r5f/` is intended for functional logic checking at
 **1 MHz MA** on a dedicated AM6442 R5F. It needs a board-specific timer and
 direct GPIO access in a tight polling loop, with the loop and emulator code
