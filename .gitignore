@@ -1,0 +1,18 @@
+# Quartus generated databases and compilation outputs
+/db/
+/incremental_db/
+/output_files/
+/greybox_tmp/
+# Local Quartus workspace state and automatic backups
+/*.qws
+/*.qdf
+/*.qpf.bak
+/*.qsf.bak
+/*.qsf.old
+/*.qpf.old
+/*.qws.bak
+
+# Operating system files
+Thumbs.db
+Desktop.ini
+.DS_Store
