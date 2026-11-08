@@ -2,6 +2,10 @@
 
 ## 1. Purpose
 
+This is the planned register wrapper contract; `biss_config_regs` is not yet
+implemented. The current RTL exposes active ports directly. Safety selection
+and SPW widths are compile-time generics, never writable register fields.
+
 This document specifies the host-visible register interface for the VHDL BiSS-C encoder emulator. It is bus-neutral: a thin wrapper may expose the same 32-bit register map through SPI, UART, APB, Avalon-MM, AXI4-Lite, or another host transport.
 
 All addresses are byte addresses. Registers are 32 bits wide, aligned on 4-byte boundaries, and use normal read/write transactions. A bus wrapper is responsible for byte ordering on a serial transport; each field is defined by its bit number and is not dependent on host byte endianness.
@@ -35,8 +39,8 @@ safe handover rules are specified in [BISS_EMULATOR_QUARTUS_DEBUG.md](BISS_EMULA
 | 0x40 | FRAME_COUNT | RO | Saturating completed-frame count |
 | 0x44 | ABORT_COUNT | RO | Saturating aborted-frame count |
 | 0x48 | CRC_INJECT_COUNT | RO | Saturating forced-CRC-error count |
-| 0x4C | SAFETY_SHADOW | RW | Pending BiSS Safety mode and SPW field widths |
-| 0x50 | SAFETY_STATUS | RO | Active safety mode and Sign-of-Life counter |
+| 0x4C | SAFETY_FORMAT | RO | Compiled SPW field widths |
+| 0x50 | SAFETY_STATUS | RO | Compiled safety mode and last latched Sign-of-Life counter |
 
 Addresses 0x54 through 0x7F are reserved and must read as zero. Writes to reserved addresses are ignored.
 
@@ -61,8 +65,8 @@ A reset initializes active and shadow configuration as follows:
 | Position | 0 |
 | Error / warning | healthy |
 | CRC injection | off |
-| Safety mode | off |
-| SPW single-turn / multi-turn bits | 18 / 0 |
+| Safety mode | Fixed by `G_SAFETY_MODE` (default false) |
+| SPW single-turn / multi-turn bits | Fixed by `G_SPW_ST_BITS` / `G_SPW_MT_BITS` (defaults 18 / 0) |
 
 ## 4. Register definitions
 
@@ -71,7 +75,7 @@ A reset initializes active and shadow configuration as follows:
 | Bits | Field | Value |
 | --- | --- | --- |
 | 31:16 | CORE_ID | ASCII BE (0x4245) for BiSS Emulator |
-| 15:8 | MAP_MAJOR | 0x01 |
+| 15:8 | MAP_MAJOR | 0x02 (compile-time safety selection) |
 | 7:0 | MAP_MINOR | 0x00 |
 
 ### 4.2 CONTROL (0x04, read/write and command)
@@ -80,21 +84,22 @@ A reset initializes active and shadow configuration as follows:
 | --- | --- | --- |
 | 0 | ENABLE | 1: respond to BiSS frames; 0: hold SLO idle-high and continue position motion |
 | 1 | DIRECTION | 0: positive rotation; 1: negative rotation |
-| 2 | SAFETY_MODE | 0: standard BiSS-C position frame; 1: optional BiSS Safety CPW + SPW frame |
 | 8 | APPLY | Write 1 to commit all shadow configuration at the next safe boundary |
 | 9 | LOAD_POSITION | Write 1 to preload the pending position at the next safe boundary |
 | 10 | CLEAR_DIAGNOSTICS | Write 1 to clear frame, abort and CRC-injection counters |
 | 31:11, 7:2 | Reserved | Write zero; read zero |
 
-Bits 0 through 2 are shadowed and take effect with APPLY. Command bits are write-one strobes and always read as zero.
+Bits 0 and 1 are shadowed and take effect with APPLY. Bit 2 is reserved;
+software cannot change the frame mode. Command bits are write-one strobes
+and always read as zero.
 
 ### 4.3 FORMAT_SHADOW (0x08, read/write)
 
 | Bits | Field | Legal values |
 | --- | --- | --- |
-| 4:0 | ST_BITS | Decimal 18 to 32 |
+| 5:0 | ST_BITS | Decimal 18 to 32 |
 | 12:8 | MT_BITS | Decimal 0 to 12 |
-| 31:13, 7:5 | Reserved | Write zero |
+| 31:13, 7:6 | Reserved | Write zero |
 
 The standard BiSS payload contains MT[MT_BITS-1:0] followed by ST[ST_BITS-1:0]. MT_BITS=0 omits the multi-turn field.
 
@@ -167,7 +172,7 @@ FORCE_BAD_CRC deliberately makes every enabled frame fail CRC validation. The ca
 | 8 | ERROR_ACTIVE | Active forced-error state |
 | 9 | WARNING_ACTIVE | Active forced-warning state |
 | 10 | BAD_CRC_ACTIVE | Active forced-bad-CRC state |
-| 11 | SAFETY_MODE_ACTIVE | Active BiSS Safety frame mode |
+| 11 | SAFETY_MODE_ACTIVE | Constant readback of `G_SAFETY_MODE` |
 | 31:11 | Reserved | Read zero |
 
 ### 4.10 Active configuration and position registers
@@ -180,24 +185,26 @@ ACTIVE_POSITION_ST (0x38) returns the live 32-bit single-turn accumulator intege
 
 All counters are unsigned, 32-bit and saturating. FRAME_COUNT increments when STP is transmitted; ABORT_COUNT increments when a frame ends before STP; CRC_INJECT_COUNT increments once per completed frame affected by forced bad CRC. Write CONTROL.CLEAR_DIAGNOSTICS=1 to clear all three counters.
 
-### 4.12 SAFETY_SHADOW (0x4C, read/write)
+### 4.12 SAFETY_FORMAT (0x4C, read-only)
 
-This register applies only when CONTROL.SAFETY_MODE is set. It configures the
-Safety Position Word (SPW) data channel used after the normal Control Position
-Word (CPW) data channel.
+This register reports the compiled SPW width generics. Writes are ignored.
+These widths are only used when `G_SAFETY_MODE=true`.
 
-| Bits | Field | Legal values |
+| Bits | Field | Readback |
 | --- | --- | --- |
-| 5:0 | SPW_ST_BITS | Decimal 1 to 32 |
-| 11:8 | SPW_MT_BITS | Decimal 0 to 12 |
-| 31:12, 7:6 | Reserved | Write zero |
+| 5:0 | SPW_ST_BITS | `G_SPW_ST_BITS`, decimal 1 to 32 |
+| 11:8 | SPW_MT_BITS | `G_SPW_MT_BITS`, decimal 0 to 12 |
+| 31:12, 7:6 | Reserved | Read zero |
 
 SPW_ST_BITS + SPW_MT_BITS must be from 1 to 40, and each SPW field width must
-not exceed its corresponding CPW width. The core rejects an invalid safety
-configuration on APPLY. The SPW position is derived
-from the same 44-bit physical position snapshot as CPW: it transmits the most
-significant requested multi-turn bits followed by the most significant requested
-single-turn bits. This permits an SPW at equal or lower resolution than CPW and
+not exceed its corresponding CPW width. A total over 40 is rejected by a
+static RTL assertion in safety builds. The future wrapper rejects incompatible
+CPW widths on APPLY; today's frame engine rejects such starts at LAT without
+consuming LC. SPW is derived from the same position snapshot as CPW: it
+transmits the leading requested bits of the configured CPW multi-turn field,
+followed by the leading requested bits of the CPW single-turn field. CPW ST
+is itself taken from the most significant configured bits of the full 32-bit
+single-turn accumulator. This permits SPW at equal or lower resolution than CPW and
 ensures both position words describe the same emulated shaft position.
 
 In safety mode the frame after CDS is:
@@ -209,8 +216,9 @@ SPW_MT, SPW_ST, nE, nW, LC[5:0], inverted CRC16, STP=0
 
 CRC6 uses polynomial 0x43 and CRC16 uses polynomial 0x190D9. Both start with
 zero, protect only their respective data-channel fields, and are inverted before
-transmission. The six-bit LC resets to 1 and advances once at each accepted LAT
-event through 1 to 63 before returning to 1. Error, warning, and forced-CRC
+transmission. The first accepted LAT after reset captures LC=1; subsequent
+accepted starts capture 2 through 63, then 1. An aborted frame still consumes
+its captured LC. Disabled/rejected starts do not advance LC. Error, warning, and forced-CRC
 injection controls apply to both CPW and SPW; forced bad CRC flips bit 0 of each
 transmitted CRC.
 
@@ -218,14 +226,14 @@ transmitted CRC.
 
 | Bits | Field | Meaning |
 | --- | --- | --- |
-| 0 | SAFETY_ACTIVE | 1 when the active configuration uses safety mode |
-| 6:1 | LC_VALUE | Current active Sign-of-Life counter |
+| 0 | SAFETY_ACTIVE | Constant value of `G_SAFETY_MODE` |
+| 6:1 | LC_VALUE | Last latched frame LC; resets to 1, meaningful only in safety builds |
 | 31:7 | Reserved | Read zero |
 
 ## 5. Recommended host configuration sequence
 
-1. Write CONTROL with the desired ENABLE, DIRECTION and SAFETY_MODE bits; leave command bits zero.
-2. Write FORMAT_SHADOW, TIMEOUT_SHADOW, both speed-increment words, POSITION_ST_SHADOW, POSITION_MT_SHADOW, and FAULT_SHADOW. When using safety mode, also write SAFETY_SHADOW.
+1. Read SAFETY_STATUS and SAFETY_FORMAT to determine the compiled frame format. Write CONTROL with the desired ENABLE and DIRECTION bits; leave command and reserved bits zero.
+2. Write FORMAT_SHADOW, TIMEOUT_SHADOW, both speed-increment words, POSITION_ST_SHADOW, POSITION_MT_SHADOW, and FAULT_SHADOW. In a safety build, CPW widths must accommodate the compiled SPW widths.
 3. Write CONTROL again with the same persistent bits and APPLY=1. Set LOAD_POSITION=1 if a position preload is required.
 4. Poll STATUS.APPLY_PENDING until clear. If STATUS.INVALID_CONFIG=1, correct the pending values and repeat from step 2.
 5. Confirm STATUS.MA_RATE_VALID=1 once the connected master is clocking at 1, 2, 5, or 10 MHz.

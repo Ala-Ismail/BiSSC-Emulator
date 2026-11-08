@@ -37,7 +37,8 @@ The exact MAX 10 device/package and board schematic are required before creating
 
 ## 3. Current RTL implementation status
 
-The current RTL is a standard BiSS-C core:
+The current RTL supports standard BiSS-C or a BiSS Safety process-data frame,
+selected at elaboration with `G_SAFETY_MODE`:
 
 | Block | Status |
 | --- | --- |
@@ -48,7 +49,7 @@ The current RTL is a standard BiSS-C core:
 | CRC-6, E/W status, timeout and counters | Implemented |
 | Host register bus wrapper | Pending integration |
 | Quartus In-System Sources and Probes wrapper | Pending generation/integration |
-| Optional BiSS Safety CPW/SPW serializer | Pending implementation |
+| BiSS Safety CPW/SPW serializer | Implemented; compile-time generic selection |
 | MAX 10 project and 75 MHz SDC | Included; device is provisional, board pins and interface timing pending |
 
 The top-level currently exposes active configuration signals directly. This allows the core to be connected to external board logic or a temporary test wrapper while the documented register and JTAG wrappers are added.
@@ -56,7 +57,7 @@ The top-level currently exposes active configuration signals directly. This allo
 ## 4. Quartus project setup
 
 Open `biss_emulator.qpf` to use the included compile-check project, or run
-`quartus_sh --flow compile biss_emulator` from the repository root. Its
+`quartus_sh --flow compile biss_emulator -c biss_emulator` from the repository root. Its
 10M50DAF484C7G target is provisional. Configuration/status ports are virtual;
 clock/reset/MA/SLO are automatically placed. The included SDC constrains the
 75 MHz clock and cuts the asynchronous MA path to its first synchronizer stage.
@@ -186,7 +187,72 @@ Use the following tests before connecting to a real drive application:
 
 ## 11. BiSS Safety option
 
-The project requirements include an optional BiSS Safety format containing CPW and SPW position words, separate CRC-6/CRC-16 protection, and a Sign-of-Life counter. The register and frame-format requirements are documented, but the safety serializer is not yet present in the current RTL.
+The FPGA top level and frame engine expose these VHDL generics:
+
+| Generic | Default | Meaning |
+| --- | --- | --- |
+| `G_SAFETY_MODE` | `false` | `false`: standard BiSS-C; `true`: CPW followed by SPW |
+| `G_SPW_ST_BITS` | `18` | SPW single-turn width, 1 to 32 |
+| `G_SPW_MT_BITS` | `0` | SPW multi-turn width, 0 to 12 |
+
+Mode and SPW widths are fixed during elaboration/synthesis. Changing them
+requires rebuilding the FPGA image. There is no software or JTAG mode switch.
+SPW width generics are unused in standard mode.
+
+The `biss_emulator` Quartus revision builds standard mode. The included
+`biss_emulator_safety` revision builds safety mode with 24 ST and 12 MT SPW
+bits. Select the revision in Quartus, or run:
+
+```powershell
+quartus_sh --flow compile biss_emulator -c biss_emulator_safety
+```
+
+Set the top-level generics in the revision's QSF using `set_parameter`, e.g.:
+
+```tcl
+set_parameter -name G_SAFETY_MODE true
+set_parameter -name G_SPW_ST_BITS 24
+set_parameter -name G_SPW_MT_BITS 12
+```
+
+The safety revision requires `cfg_st_bits >= 24` and `cfg_mt_bits = 12`.
+Its reports and programming files are under `output_files/safety/`.
+
+After LAT, a safety frame transmits:
+
+```text
+ACK=0, STR=1, CDS=0,
+CPW_MT, CPW_ST, nE, nW, inverted CRC6,
+SPW_MT, SPW_ST, nE, nW, LC[5:0], inverted CRC16, STP=0
+```
+
+Both words use the same position and fault snapshot taken at LAT. CPW ST
+contains the most significant `cfg_st_bits` bits of the full 32-bit turn;
+CPW MT contains the configured low `cfg_mt_bits` bits of the turn counter.
+SPW uses the leading requested bits of each CPW field. MT is omitted when
+its width is zero. All fields are sent MSB first.
+
+CRC6 covers CPW position and its nE/nW using polynomial `0x43`. CRC16 covers
+SPW position, nE/nW and LC using polynomial `0x190D9`. Both start at zero and
+are transmitted inverted. CRC state advances with each transmitted protected
+bit; headers, the other word, and STP are excluded. Fault inputs affect both
+words; `cfg_force_bad_crc` flips the last bit of each CRC.
+
+The first accepted frame after reset transmits LC=1, followed by 2 through 63,
+then 1. LC advances at each accepted LAT, including frames later aborted.
+Disabled or rejected starts do not consume LC. Reset restarts the sequence.
+
+In safety builds, SPW ST+MT must not exceed 40 bits (a static assertion rejects
+larger builds), and each SPW width must be no greater than its CPW width.
+Incompatible CPW widths or a zero timeout keep SLO idle and do not start a
+frame. The pending register wrapper is still needed to expose a host-visible
+invalid-configuration flag. Widths, timeout and fault controls are captured at
+LAT, so input changes cannot alter an in-flight frame.
+
+Run `./sim/run.ps1` with ModelSim/Questa tools on PATH to check both formats.
+See [simulation instructions](sim/README.md) for coverage and tool selection.
+The R5F C reference core remains standard BiSS-C only. EDS/profile register
+discovery and independent redundant sensing are not implemented.
 
 This feature is communication-format emulation only. It does not make the FPGA, board, or system safety certified.
 

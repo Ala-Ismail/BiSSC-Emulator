@@ -3,6 +3,11 @@ use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
 
 entity biss_emulator_top is
+  generic (
+    G_SAFETY_MODE : boolean := false;
+    G_SPW_ST_BITS : positive range 1 to 32 := 18;
+    G_SPW_MT_BITS : natural range 0 to 12 := 0
+  );
   port (
     clk_75m       : in  std_logic;
     rst_n         : in  std_logic;
@@ -46,6 +51,10 @@ begin
     );
 
   u_frame : entity work.biss_frame_engine
+    generic map (
+      G_SAFETY_MODE => G_SAFETY_MODE,
+      G_SPW_ST_BITS => G_SPW_ST_BITS, G_SPW_MT_BITS => G_SPW_MT_BITS
+    )
     port map (
       clk => clk_75m, rst_n => rst_n, ma_in => ma_in, enable => cfg_enable,
       st_bits => cfg_st_bits, mt_bits => cfg_mt_bits, timeout_ticks => cfg_timeout_ticks,

@@ -3,6 +3,9 @@
 /incremental_db/
 /output_files/
 /greybox_tmp/
+/sim/build/
+/compile_standard.log
+/compile_safety.log
 # Local Quartus workspace state and automatic backups
 /*.qws
 /*.qdf

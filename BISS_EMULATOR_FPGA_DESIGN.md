@@ -122,8 +122,10 @@ implementation must preserve this process-data frame.
 
 ### 5.3 Optional BiSS Safety frame mode
 
-Provide a selectable, disabled-by-default BiSS Safety mode for test and
-integration use. It extends the normal header and frame termination as follows:
+BiSS Safety is selected only by the VHDL generic `G_SAFETY_MODE` (default
+`false`) on the top level and frame engine. There is no runtime mode control.
+`G_SPW_ST_BITS` (default 18) and `G_SPW_MT_BITS` (default 0) also select SPW
+widths at compile time. The implemented safety frame is:
 
 ```
 ACK, STR, CDS,
@@ -141,8 +143,21 @@ polynomial `0x190D9`; transmit the CRC bits inverted and MSB first. The CRCs
 are calculated separately. `LC` advances once for each successfully started
 frame and follows `1, 2, ..., 63, 1`; its reset value is 1.
 
-The exact safety-mode configuration registers and SPW mapping are defined in
-[BISS_EMULATOR_REGISTER_INTERFACE.md](BISS_EMULATOR_REGISTER_INTERFACE.md).
+The first accepted frame after reset uses LC=1; accepted starts consume the
+next value even if transmission later aborts. SPW uses the leading requested
+bits of CPW MT and ST from the same LAT snapshot. CPW ST itself uses the most
+significant configured bits of the full 32-bit turn. Widths, status flags,
+CRC injection, and timeout are latched at LAT. CRC6 and CRC16 are accumulated
+while their protected bits are serialized, rather than through a whole-word
+combinational chain.
+
+SPW ST must be 1 to 32 bits, MT 0 to 12, and their sum at most 40. Each
+must fit its corresponding CPW field. Invalid static total width fails an
+assertion; incompatible active CPW widths or a zero timeout reject LAT and
+leave SLO idle without consuming LC. The future register readback contract
+is defined in [BISS_EMULATOR_REGISTER_INTERFACE.md](BISS_EMULATOR_REGISTER_INTERFACE.md).
+The frame engine and tests are implemented; register/JTAG wrappers and EDS
+discovery remain pending. See [simulation coverage](sim/README.md).
 This optional mode emulates the communication format only. It does **not** make
 the FPGA, emulator, or connected system functionally safe, certified, or
 suitable for a safety function without a separate safety lifecycle, analysis,

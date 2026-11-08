@@ -2,6 +2,10 @@
 
 ## 1. Scope
 
+This is a planned wrapper interface; the wrapper and generated IP are not
+implemented yet. Safety format is fixed by `G_SAFETY_MODE` and SPW width
+generics at compile time. JTAG cannot change them.
+
 This interface is for laboratory bring-up of the BiSS emulator on an Altera/Intel MAX 10 FPGA using JTAG and Quartus Prime. It has two separate roles:
 
 - Quartus In-System Sources and Probes drives selected emulator controls through JTAG.
@@ -34,7 +38,7 @@ The JTAG editor writes the 192-bit source word. Its fields are:
 | 0 | DBG_OVERRIDE_EN | Enables debug control. 0 leaves normal host registers in control. |
 | 1 | ENABLE | Requested emulator enable |
 | 2 | DIRECTION | 0 positive, 1 negative |
-| 3 | SAFETY_MODE | 0 standard BiSS-C, 1 optional safety frame |
+| 3 | Reserved | Write zero; safety mode is a compile-time generic |
 | 4 | FORCE_ERROR | Drives nE low when active |
 | 5 | FORCE_WARNING | Drives nW low when active |
 | 6 | FORCE_BAD_CRC | Corrupts the transmitted CRC for test |
@@ -43,8 +47,7 @@ The JTAG editor writes the 192-bit source word. Its fields are:
 | 9 | CLEAR_DIAG_TOGGLE | Toggle this bit to clear diagnostic counters |
 | 15:10 | ST_BITS | Single-turn bit width, 18 to 32 |
 | 19:16 | MT_BITS | Multi-turn bit width, 0 to 12 |
-| 25:20 | SPW_ST_BITS | Safety Position Word single-turn width, 1 to 32 |
-| 29:26 | SPW_MT_BITS | Safety Position Word multi-turn width, 0 to 12 |
+| 29:20 | Reserved | Write zero; SPW widths are compile-time generics |
 | 53:30 | TIMEOUT_TICKS | Static timeout in 75 MHz clocks |
 | 117:54 | SPEED_INCREMENT | Unsigned 64-bit motion phase increment |
 | 149:118 | POSITION_ST | 32-bit single-turn preload |
@@ -70,7 +73,7 @@ The 128-bit probe word is read from the In-System Sources and Probes Editor.
 | 12 | MA_RATE_VALID | Current MA frequency is supported |
 | 13 | SLO_OUT | FPGA-side SLO output value |
 | 14 | SLO_OE | SLO output-enable value |
-| 15 | SAFETY_ACTIVE | Active frame mode |
+| 15 | SAFETY_ACTIVE | Constant readback of `G_SAFETY_MODE` |
 | 47:16 | SNAPSHOT_ST | Coherent single-turn frame snapshot |
 | 59:48 | SNAPSHOT_MT | Coherent multi-turn frame snapshot |
 | 65:60 | LC_VALUE | Safety sign-of-life counter |
